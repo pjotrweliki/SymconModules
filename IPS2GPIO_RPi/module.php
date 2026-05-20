@@ -1,21 +1,21 @@
-<?
-    // Klassendefinition
-    class IPS2GPIO_RPi extends IPSModule 
-    {    
+<?php
+// geändert von P.G.
+
+// Klassendefinition
+class IPS2GPIO_RPi extends IPSModule {
 	// Überschreibt die interne IPS_Create($id) Funktion
-        public function Create() 
-        {
+	public function Create() {
 		// Diese Zeile nicht löschen.
 		parent::Create();
 		$this->ConnectParent("{ED89906D-5B78-4D47-AB62-0BDCEB9AD330}");
 		$this->RegisterPropertyBoolean("Open", false);
 		$this->RegisterPropertyInteger("Messzyklus", 60);
 		$this->RegisterTimer("Messzyklus", 0, 'I2GRPi_Measurement_1($_IPS["TARGET"]);');
-		
+
 		// Profil anlegen
 		$this->RegisterProfileFloat("IPS2GPIO.MB", "Information", "", " MB", 0, 1000000, 0.1, 1);
 		$this->RegisterProfileFloat("IPS2GPIO.mhz", "Speedo", "", " MHz", 0, 10000, 0.1, 1);
-		
+
 		// Status-Variablen anlegen
 		$this->RegisterVariableString("Board", "Board", "", 10);
 		$this->RegisterVariableString("Revision", "Revision", "", 20);
@@ -26,13 +26,13 @@
 		$this->RegisterVariableFloat("MemoryGPU", "Memory GPU", "IPS2GPIO.MB", 70);
 		$this->RegisterVariableString("Hostname", "Hostname", "", 80);
 		$this->RegisterVariableString("Uptime", "Uptime", "", 90);
-		
+
 		// CPU/GPU
 		$this->RegisterVariableFloat("TemperaturCPU", "Temperature CPU", "~Temperature", 100);
 		$this->RegisterVariableFloat("TemperaturGPU", "Temperature GPU", "~Temperature", 110);
 		$this->RegisterVariableFloat("VoltageCPU", "Voltage CPU", "~Volt", 120);
-		$this->RegisterVariableFloat("ARM_Frequenzy", "ARM Frequenzy", "IPS2GPIO.mhz", 130);
-		
+		$this->RegisterVariableFloat("ARM_Frequency", "ARM Frequency", "IPS2GPIO.mhz", 130);
+
 		// CPU Auslastung
 		$this->RegisterVariableFloat("AverageLoad", "CPU AverageLoad", "~Intensity.1", 140);
 		$this->SetBuffer("PrevTotal", 0);
@@ -42,42 +42,38 @@
 		$this->RegisterVariableFloat("MemoryTotal", "Memory Total", "IPS2GPIO.MB", 200);
 		$this->RegisterVariableFloat("MemoryFree", "Memory Free", "IPS2GPIO.MB", 210);
 		$this->RegisterVariableFloat("MemoryAvailable", "Memory Available", "IPS2GPIO.MB", 220);
-		
+
 		// SD-Card
 		$this->RegisterVariableFloat("SD_Card_Total", "SD-Card Total", "IPS2GPIO.MB", 300);
 		$this->RegisterVariableFloat("SD_Card_Used", "SD-Card Used", "IPS2GPIO.MB", 310);
 		$this->RegisterVariableFloat("SD_Card_Available", "SD-Card Available", "IPS2GPIO.MB", 320);
 		$this->RegisterVariableFloat("SD_Card_Used_rel", "SD-Card Used (rel)", "~Intensity.1", 330);
-       }
- 	
-	public function GetConfigurationForm() 
-	{ 
-		$arrayStatus = array(); 
-		$arrayStatus[] = array("code" => 101, "icon" => "inactive", "caption" => "Instanz wird erstellt"); 
+	}
+
+	public function GetConfigurationForm() {
+		$arrayStatus = array();
+		$arrayStatus[] = array("code" => 101, "icon" => "inactive", "caption" => "Instanz wird erstellt");
 		$arrayStatus[] = array("code" => 102, "icon" => "active", "caption" => "Instanz ist aktiv");
 		$arrayStatus[] = array("code" => 104, "icon" => "inactive", "caption" => "Instanz ist inaktiv");
 		$arrayStatus[] = array("code" => 200, "icon" => "error", "caption" => "Instanz ist fehlerhaft");
-		
-		$arrayElements = array(); 
-		$arrayElements[] = array("type" => "CheckBox", "name" => "Open", "caption" => "Aktiv"); 
- 			
+
+		$arrayElements = array();
+		$arrayElements[] = array("type" => "CheckBox", "name" => "Open", "caption" => "Aktiv");
 		$arrayElements[] = array("type" => "IntervalBox", "name" => "Messzyklus", "caption" => "Sekunden");
-							
- 		return JSON_encode(array("status" => $arrayStatus, "elements" => $arrayElements)); 		 
- 	}       	
-	    
+
+		return JSON_encode(array("status" => $arrayStatus, "elements" => $arrayElements));
+	}
+
 	// Überschreibt die intere IPS_ApplyChanges($id) Funktion
-        public function ApplyChanges() 
-        {
-                 // Diese Zeile nicht löschen
-                 parent::ApplyChanges();
-		
-                If ((IPS_GetKernelRunlevel() == 10103) AND ($this->HasActiveParent() == true)) {	
+	public function ApplyChanges() {
+		// Diese Zeile nicht löschen
+		parent::ApplyChanges();
+
+		If ((IPS_GetKernelRunlevel() == 10103) AND ($this->HasActiveParent() == true)) {
 			//ReceiveData-Filter setzen
 			$Filter = '(.*"Function":"get_start_trigger".*|.*"InstanceID":'.$this->InstanceID.'.*)';
 			$this->SetReceiveDataFilter($Filter);
-				
-			
+
 			If ($this->ReadPropertyBoolean("Open") == true) {
 				$this->SetTimerInterval("Messzyklus", ($this->ReadPropertyInteger("Messzyklus") * 1000));
 				$this->Measurement();
@@ -100,29 +96,28 @@
 			}
 		}
 	}
-	
-	public function ReceiveData($JSONString) 
-	{
-	    	
+
+	public function ReceiveData($JSONString) {
 		// Empfangene Daten vom Gateway/Splitter
-	    	$data = json_decode($JSONString);
-	 	switch ($data->Function) {
+		$data = json_decode($JSONString);
+		switch ($data->Function) {
 			case "get_start_trigger":
-			   	$this->ApplyChanges();
+				$this->ApplyChanges();
 				break;
-	 	}
- 	}
-	
+		}
+	}
+
 	// Beginn der Funktionen
-	public function Measurement()
-	{
+	public function Measurement() {
 		If (($this->ReadPropertyBoolean("Open") == true) AND (IPS_GetKernelRunlevel() == 10103)) {
 			$this->SendDebug("Measurement", "Ausfuehrung", 0);
 			// Daten werden nur einmalig nach Start oder bei Änderung eingelesen
 			$CommandArray = Array();
 			// Betriebsystem
 			$CommandArray[0] = "cat /proc/version";
-			// Hardware-Daten
+			// Hardware-Daten (Board, Revision, Serial) aus /proc/cpuinfo
+			// HINWEIS: Die "Hardware:"-Zeile wird NICHT mehr aus /proc/cpuinfo gelesen
+			// (seit Kernel >= 4.9 nicht mehr vorhanden). Hardware-Chip → CommandArray[5].
 			$CommandArray[1] = "cat /proc/cpuinfo";
 			// CPU Speicher
 			$CommandArray[2] = "vcgencmd get_mem arm";
@@ -130,16 +125,36 @@
 			$CommandArray[3] = "vcgencmd get_mem gpu";
 			// Hostname
 			$CommandArray[4] = "hostname";
+			// FIX 2: Hardware-Chip-Bezeichnung aus dem Device-Tree (neu)
+			// Ausgabe: z.B. "raspberrypi,3-model-b\0brcm,bcm2837\0"
+			// Die Null-Bytes (\0) trennen die einzelnen Kompatibilitäts-Strings.
+			// Der Eintrag "brcm,bcmXXXX" enthält die eigentliche Chip-Bezeichnung.
+			// Beispiele: brcm,bcm2837 → BCM2837 (Pi 3B/3B+)
+			//            brcm,bcm2711 → BCM2711 (Pi 4B)
+			//            brcm,bcm2835 → BCM2835 (Pi 1, Zero)
+			$CommandArray[5] = "cat /proc/device-tree/compatible";
 
 			$Result = $this->SendDataToParent(json_encode(Array("DataID"=> "{A0DAAF26-4A2D-4350-963E-CC02E74BD414}", "Function" => "get_RPi_connect", "InstanceID" => $this->InstanceID,  "Command" => serialize($CommandArray), "CommandNumber" => 0, "IsArray" => true )));
 			$this->SendDebug("Measurement", "Daten: ".$Result, 0);
-			$ResultArray = unserialize(utf8_decode($Result));
+
+			// FIX 3: utf8_decode() ist seit PHP 8.2 deprecated.
+			// Ersetzt durch mb_convert_encoding() mit Fallback.
+			if (function_exists('mb_convert_encoding')) {
+				$ResultArray = unserialize(mb_convert_encoding($Result, 'ISO-8859-1', 'UTF-8'));
+			}
+			else {
+				$ResultArray = unserialize(utf8_decode($Result));
+			}
+
 			If (is_array($ResultArray) == false) {
 				$this->SendDebug("Measurement", "Fehler bei der Datenermittlung!", 0);
 				return;
 			}
-			
-			for ($i = 0; $i < Count($ResultArray); $i++) {
+
+			// FIX 4: reset() stellt sicher, dass der interne Pointer auf Element 0 zeigt
+			reset($ResultArray);
+
+			for ($i = 0;$i < Count($ResultArray);$i++) {
 				switch(key($ResultArray)) {
 					case "0":
 						// Betriebssystem
@@ -147,23 +162,22 @@
 						$this->SetValue("Software", $Result);
 						break;
 					case "1":
-						// Hardware-Daten
+						// Hardware-Daten: Board, Revision, Serial aus /proc/cpuinfo
+						// HINWEIS: "Hardware:"-Zeile absichtlich nicht mehr gelesen –
+						// sie fehlt auf modernen Kerneln. Hardware-Chip → case "5".
 						$HardwareArray = explode("\n", $ResultArray[key($ResultArray)]);
-						for ($j = 0; $j <= Count($HardwareArray) - 1; $j++) {
-							If (Substr($HardwareArray[$j], 0, 8) == "Hardware") {
-								$PartArray = explode(":", $HardwareArray[$j]);
-								$this->SetValue("Hardware", trim($PartArray[1]));
-							}
+						for ($j = 0;$j <= Count($HardwareArray) - 1;$j++) {
+							// FIX 5: explode(":", ..., 2) statt explode(":", ...)
+							// Verhindert Fehler bei Werten mit Doppelpunkt (z.B. IPv6).
 							If (Substr($HardwareArray[$j], 0, 8) == "Revision") {
-								$PartArray = explode(":", $HardwareArray[$j]);
+								$PartArray = explode(":", $HardwareArray[$j], 2);
 								$this->SetValue("Revision", trim($PartArray[1]));
-								$this->SetValue("Board", $this->GetHardware(hexdec($PartArray[1])) );
+								$this->SetValue("Board", $this->GetHardware(hexdec($PartArray[1])));
 							}
 							If (Substr($HardwareArray[$j], 0, 6) == "Serial") {
-								$PartArray = explode(":", $HardwareArray[$j]);
+								$PartArray = explode(":", $HardwareArray[$j], 2);
 								$this->SetValue("Serial", trim($PartArray[1]));
 							}
-
 						}
 						break;
 					case "2":
@@ -182,17 +196,46 @@
 						$this->SetValue("Hostname", $Result);
 						$this->SetSummary($Result);
 						break;
-
+					case "5":
+						// FIX 2: Hardware-Chip-Bezeichnung aus /proc/device-tree/compatible
+						//
+						// Das Device-Tree "compatible"-File enthält mehrere Strings,
+						// getrennt durch Null-Bytes (\0), z.B.:
+						//   "raspberrypi,3-model-b\0brcm,bcm2837\0"
+						//
+						// Vorgehen:
+						//   1. Null-Bytes als Trenner verwenden → Array der Einträge
+						//   2. Den Eintrag mit Präfix "brcm," suchen
+						//   3. Chip-Name extrahieren ("brcm,bcm2837" → "BCM2837")
+						//   4. Uppercase → z.B. "BCM2837" in Variable Hardware schreiben
+						$raw = $ResultArray[key($ResultArray)];
+						// Null-Bytes (\0) als Trennzeichen, String aufteilen
+						$parts = explode("\0", $raw);
+						$hardware = "";
+						foreach ($parts as $part) {
+							$part = trim($part);
+							// Broadcom-Eintrag "brcm,bcmXXXX" identifizieren
+							if (strpos($part, "brcm,") === 0) {
+								// Präfix "brcm," (5 Zeichen) entfernen, Großbuchstaben
+								// Beispiel: "brcm,bcm2837" → substr → "bcm2837" → "BCM2837"
+								$hardware = strtoupper(substr($part, 5));
+								break;
+							}
+						}
+						// Fallback: Kein brcm-Eintrag gefunden
+						if ($hardware === "") {
+							$hardware = "Unbekannt";
+						}
+						$this->SetValue("Hardware", $hardware);
+						break;
 				}
 				Next($ResultArray);
 			}
 		}
 	}
-	    
-	    
-	 // Führt eine Messung aus
-	public function Measurement_1()
-	{
+
+	// Führt eine Messung aus
+	public function Measurement_1() {
 		If (($this->ReadPropertyBoolean("Open") == true) AND (IPS_GetKernelRunlevel() == 10103)) {
 			$this->SendDebug("Measurement_1", "Ausfuehrung", 0);
 			$CommandArray = Array();
@@ -209,19 +252,31 @@
 			// Speicher
 			$CommandArray[5] = "cat /proc/meminfo | grep Mem";
 			// SD-Card
-			$CommandArray[6] = "df -P | grep /dev/root";
+			$CommandArray[6] = "df -P / | grep /";
 			// Uptime
 			$CommandArray[7] = "uptime";
 
-
 			$Result = $this->SendDataToParent(json_encode(Array("DataID"=> "{A0DAAF26-4A2D-4350-963E-CC02E74BD414}", "Function" => "get_RPi_connect", "InstanceID" => $this->InstanceID,  "Command" => serialize($CommandArray), "CommandNumber" => 1, "IsArray" => true )));
 			$this->SendDebug("Measurement_1", "Daten: ".$Result, 0);
-			$ResultArray = unserialize(utf8_decode($Result));
+
+			// FIX 3: utf8_decode() ist seit PHP 8.2 deprecated.
+			// Ersetzt durch mb_convert_encoding() mit Fallback.
+			if (function_exists('mb_convert_encoding')) {
+				$ResultArray = unserialize(mb_convert_encoding($Result, 'ISO-8859-1', 'UTF-8'));
+			}
+			else {
+				$ResultArray = unserialize(utf8_decode($Result));
+			}
+
 			If (is_array($ResultArray) == false) {
 				$this->SendDebug("Measurement_1", "Fehler bei der Datenermittlung!", 0);
 				return;
 			}
-			for ($i = 0; $i < Count($ResultArray); $i++) {
+
+			// FIX 4: reset() stellt sicher, dass der interne Pointer auf Element 0 zeigt
+			reset($ResultArray);
+
+			for ($i = 0;$i < Count($ResultArray);$i++) {
 				switch(key($ResultArray)) {
 					case "0":
 						// GPU Temperatur
@@ -229,24 +284,23 @@
 						$Result = min(200, max(-20, $Result));
 						$this->SetValue("TemperaturGPU", $Result);
 						break;
-
 					case "1":
 						// CPU Temperatur
 						$Result = floatval(intval($ResultArray[key($ResultArray)]) / 1000);
-						$Result = min(200, max(-20, $Result));						
+						$Result = min(200, max(-20, $Result));
 						$this->SetValue("TemperaturCPU", $Result);
 						break;
 					case "2":
 						// CPU Spannung
 						$Result = floatval(substr($ResultArray[key($ResultArray)], 5, -1));
-						$Result = min(10, max(0, $Result));							
+						$Result = min(10, max(0, $Result));
 						$this->SetValue("VoltageCPU", $Result);
 						break;
 					case "3":
 						// ARM Frequenz
 						$Result = intval(substr($ResultArray[key($ResultArray)], 14))/1000000;
-						$Result = min(2500, max(0, $Result));						
-						$this->SetValue("ARM_Frequenzy", $Result);
+						$Result = min(2500, max(0, $Result));
+						$this->SetValue("ARM_Frequency", $Result);
 						break;
 					case "4":
 						// CPU Auslastung über proc/stat
@@ -266,7 +320,6 @@
 							// NonIdle = user+nice+system+irq+softrig+steal
 							//$NonIdle = floatval($LineOneArray[0]) + floatval($LineOneArray[1]) + floatval($LineOneArray[2]) + floatval($LineOneArray[5]) + floatval($LineOneArray[6]) + floatval($LineOneArray[7]);
 							$NonIdle = intval($LineOneArray[0]) + intval($LineOneArray[1]) + intval($LineOneArray[2]) + intval($LineOneArray[5]) + intval($LineOneArray[6]) + intval($LineOneArray[7]);
-
 							$this->SendDebug(__CLASS__ . '::' . __FUNCTION__, "user=$LineOneArray[0], nice=$LineOneArray[1], system=$LineOneArray[2], irq=$LineOneArray[5], softrig=$LineOneArray[6], steal=$LineOneArray[7] => NonIdle=$NonIdle", 0);
 							// Total = Idle + NonIdle
 							$Total = $Idle + $NonIdle;
@@ -321,39 +374,38 @@
 							$this->SetValue("SD_Card_Used", 0);
 							$this->SetValue("SD_Card_Available", 0);
 							$this->SetValue("SD_Card_Used_rel", 0);
-						}	
+						}
 						break;
 					case "7":
 						// Uptime
 						$UptimeArray = explode(",", $ResultArray[key($ResultArray)]);
 						$pos = strpos($UptimeArray[0], "days");
 						if ($pos !== false) {
-						    $this->SetValue("Uptime", trim(substr($UptimeArray[0].$UptimeArray[1], 12)));
-						} else {
-						    $this->SetValue("Uptime", trim(substr($UptimeArray[0], 12)));
+							$this->SetValue("Uptime", trim(substr($UptimeArray[0].$UptimeArray[1], 12)));
+						}
+						else {
+							$this->SetValue("Uptime", trim(substr($UptimeArray[0], 12)));
 						}
 						break;
-
 				}
 				Next($ResultArray);
 			}
 		}
 	}
- 	
-	public function PiReboot()
-	{
+
+	public function PiReboot() {
 		$Command = "sudo reboot";
 		$this->SendDataToParent(json_encode(Array("DataID"=> "{A0DAAF26-4A2D-4350-963E-CC02E74BD414}", "Function" => "get_RPi_connect", "InstanceID" => $this->InstanceID,  "Command" => $Command, "CommandNumber" => 3, "IsArray" => false )));
-	}    
-	
-	public function PiShutdown()
-	{
-		$Command = "sudo shutdown –h 0";
+	}
+
+	public function PiShutdown() {
+		// FIX 1: EN-DASH (–, U+2013) durch ASCII-Minus (-) ersetzt.
+		// Original war: "sudo shutdown –h 0" → Bash konnte -h nicht erkennen → shutdown funktionierte nie!
+		$Command = "sudo shutdown -h 0";
 		$this->SendDataToParent(json_encode(Array("DataID"=> "{A0DAAF26-4A2D-4350-963E-CC02E74BD414}", "Function" => "get_RPi_connect", "InstanceID" => $this->InstanceID,  "Command" => $Command, "CommandNumber" => 3, "IsArray" => false )));
-	}       
-	    
-	public function SetDisplayPower(bool $Value)
-	{
+	}
+
+	public function SetDisplayPower(bool $Value) {
 		If ($Value == true) {
 			$Status = 1;
 		}
@@ -362,45 +414,38 @@
 		}
 		$Command = "vcgencmd display_power ".$Status;
 		$this->SendDataToParent(json_encode(Array("DataID"=> "{A0DAAF26-4A2D-4350-963E-CC02E74BD414}", "Function" => "get_RPi_connect", "InstanceID" => $this->InstanceID,  "Command" => $Command, "CommandNumber" => 3, "IsArray" => false )));
-	}       
-	    
-	private function RegisterProfileInteger($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize)
-	{
-	        if (!IPS_VariableProfileExists($Name))
-	        {
-	            IPS_CreateVariableProfile($Name, 1);
-	        }
-	        else
-	        {
-	            $profile = IPS_GetVariableProfile($Name);
-	            if ($profile['ProfileType'] != 1)
-	                throw new Exception("Variable profile type does not match for profile " . $Name);
-	        }
-	        IPS_SetVariableProfileIcon($Name, $Icon);
-	        IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
-	        IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);        
 	}
-	
-	private function RegisterProfileFloat($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize, $Digits)
-	{
-	        if (!IPS_VariableProfileExists($Name))
-	        {
-	            IPS_CreateVariableProfile($Name, 2);
-	        }
-	        else
-	        {
-	            $profile = IPS_GetVariableProfile($Name);
-	            if ($profile['ProfileType'] != 2)
-	                throw new Exception("Variable profile type does not match for profile " . $Name);
-	        }
-	        IPS_SetVariableProfileIcon($Name, $Icon);
-	        IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
-	        IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);
-	        IPS_SetVariableProfileDigits($Name, $Digits);
+
+	private function RegisterProfileInteger($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize) {
+		if (!IPS_VariableProfileExists($Name)) {
+			IPS_CreateVariableProfile($Name, 1);
+		}
+		else {
+			$profile = IPS_GetVariableProfile($Name);
+			if ($profile['ProfileType'] != 1)
+				throw new Exception("Variable profile type does not match for profile " . $Name);
+		}
+		IPS_SetVariableProfileIcon($Name, $Icon);
+		IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
+		IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);
 	}
-	
-	private function GetHardware(Int $RevNumber)
-	{
+
+	private function RegisterProfileFloat($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize, $Digits) {
+		if (!IPS_VariableProfileExists($Name)) {
+			IPS_CreateVariableProfile($Name, 2);
+		}
+		else {
+			$profile = IPS_GetVariableProfile($Name);
+			if ($profile['ProfileType'] != 2)
+			throw new Exception("Variable profile type does not match for profile " . $Name);
+		}
+		IPS_SetVariableProfileIcon($Name, $Icon);
+		IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
+		IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);
+		IPS_SetVariableProfileDigits($Name, $Digits);
+	}
+
+	private function GetHardware(Int $RevNumber) {
 		$Hardware = array(2 => "Rev.0002 Model B PCB-Rev. 1.0 256MB", 3 => "Rev.0003 Model B PCB-Rev. 1.0 256MB", 4 => "Rev.0004 Model B PCB-Rev. 2.0 256MB Sony", 5 => "Rev.0005 Model B PCB-Rev. 2.0 256MB Qisda", 
 			6 => "Rev.0006 Model B PCB-Rev. 2.0 256MB Egoman", 7 => "Rev.0007 Model A PCB-Rev. 2.0 256MB Egoman", 8 => "Rev.0008 Model A PCB-Rev. 2.0 256MB Sony", 9 => "Rev.0009 Model A PCB-Rev. 2.0 256MB Qisda",
 			13 => "Rev.000d Model B PCB-Rev. 2.0 512MB Egoman", 14 => "Rev.000e Model B PCB-Rev. 2.0 512MB Sony", 15 => "Rev.000f Model B PCB-Rev. 2.0 512MB Qisda", 16 => "Rev.0010 Model B+ PCB-Rev. 1.0 512MB Sony",
@@ -408,6 +453,7 @@
 			21 => "Rev.0015 Model A+ PCB-Rev. 1.1 256/512MB Embest", 10489920 => "Rev.a01040 2 Model B PCB-Rev. 1.0 1GB", 10489921 => "Rev.a01041 2 Model B PCB-Rev. 1.1 1GB Sony", 10620993 => "Rev.a21041 2 Model B PCB-Rev. 1.1 1GB Embest",
 			10625090 => "Rev.a22042 2 Model B PCB-Rev. 1.2 1GB Embest", 9437330 => "Rev.900092 Zero PCB-Rev. 1.2 512MB Sony", 9437331 => "Rev.900093 Zero PCB-Rev. 1.3 512MB Sony", 10494082 => "Rev.a02082 3 Model B PCB-Rev. 1.2 1GB Sony",
 			10625154 => "Rev.a22082 3 Model B PCB-Rev. 1.2 1GB Embest", 44044353 => "Rev.2a01041 2 Model B PCB-Rev. 1.1 1GB Sony (overvoltage)", 10494163 => "Rev.a020d3 3 Model B+ PCB-Rev. 1.3 1GB Sony",
+			10494164 => "Rev.a020d4 3 Model B+ PCB-Rev. 1.4 1GB Sony",
 			10498321 => "Rev.a03111 4 Model B PCB-Rev. 1.1 1GB Sony UK", 11546897 => "Rev.b03111 4 Model B PCB-Rev. 1.1 2GB Sony UK", 12595473 => "Rev.c03111 4 Model B PCB-Rev. 1.1 4GB Sony UK");
 		If (array_key_exists($RevNumber, $Hardware)) {
 			$HardwareText = $Hardware[$RevNumber];
